@@ -45,7 +45,15 @@ struct RequestedSourceInfo {
 }
 
 #[derive(Debug)]
-struct OptionsBuilder {
+struct OptionsBuilderStage0 {
+    gh: String,
+    theme: String,
+    lines: Option<String>,
+    lang: Option<String>,
+}
+
+#[derive(Debug)]
+struct OptionsBuilderStage1 {
     gh: String,
     theme: String,
     lines: Option<String>,
@@ -71,7 +79,7 @@ async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     if url.query().is_none() {
         return Response::from_html("<html>See <a href=\"https://github.com/9oelM/embed-github\">https://github.com/9oelM/embed-github</a> on how to use this.</html>");
     }
-    let options_builder = OptionsBuilder::from_url(&url)?;
+    let options_builder = OptionsBuilderStage1::from_url(&url)?;
     let options = options_builder.build().await?;
 
     let source_code_in_range = get_source_code_in_range(
@@ -294,71 +302,45 @@ async fn get_source_code_in_range(raw_code_url: Url, line_range: &LineRange) -> 
     }
 }
 
-fn get_requested_source_info_from_query(gh_url_from_query: &str) -> Result<RequestedSourceInfo> {
-    let decoded_url = js_sys::decode_uri_component(gh_url_from_query)?.as_string();
+fn get_requested_source_info_from_query(
+    gh_query_param: &str,
+    lines_query_param: &Option<String>,
+) -> Result<RequestedSourceInfo> {
+    let url = Url::parse(gh_query_param).map_err(|_| {
+        Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
+    })?;
+    let domain = url.domain().ok_or(Error::RustError(
+        "Invalid Github Permalink URL missing a domain".to_string(),
+    ))?;
 
-    if decoded_url.clone().is_some_and(
-        // Normal URL when decoded returns the same URL
-        |decoded_url| decoded_url != gh_url_from_query,
-    ) {
-        // Already checked
-        let decoded_url = decoded_url.unwrap();
-        let url = Url::parse(&decoded_url).map_err(|_| {
-            Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
-        })?;
-
-        let domain = url.domain().ok_or(Error::RustError(
-            "Invalid Github Permalink URL missing a domain".to_string(),
-        ))?;
-
-        if domain != "github.com" {
-            return Err(Error::RustError(
-                "Invalid Github Permalink URL. Only URLs from github.com are allowed".to_string(),
-            ));
-        }
-
-        let line_range = if let Some(frag) = url.fragment() {
-            decode_line_range(frag)?
-        } else {
-            LineRange::All
-        };
-
-        Ok(RequestedSourceInfo {
-            url,
-            lines: line_range,
-        })
-    } else {
-        let url = Url::parse(gh_url_from_query).map_err(|_| {
-            Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
-        })?;
-        let line_numbers = url.query_pairs().clone().find(|(key, _)| key == "lines");
-
-        let domain = url.domain().ok_or(Error::RustError(
-            "Invalid Github Permalink URL missing a domain".to_string(),
-        ))?;
-
-        if domain != "github.com" {
-            return Err(Error::RustError(
-                "Invalid Github Permalink URL. Only URLs from github.com are allowed".to_string(),
-            ));
-        }
-
-        let line_range = if let Some(line_numbers) = line_numbers {
-            decode_line_range(&line_numbers.1)?
-        } else {
-            LineRange::All
-        };
-
-        Ok(RequestedSourceInfo {
-            url,
-            lines: line_range,
-        })
+    if domain != "github.com" {
+        return Err(Error::RustError(
+            "Invalid Github Permalink URL. Only URLs from github.com are allowed".to_string(),
+        ));
     }
+
+    let line_range_from_fragment = if let Some(line_numbers) = url.fragment() {
+        decode_line_range(line_numbers)?
+    } else {
+        LineRange::All
+    };
+
+    // Priority: lines query parameter > line range from fragment
+    let line_range = if let Some(line_numbers) = lines_query_param {
+        decode_line_range(line_numbers)?
+    } else {
+        line_range_from_fragment
+    };
+
+    Ok(RequestedSourceInfo {
+        url,
+        lines: line_range,
+    })
 }
 
-impl OptionsBuilder {
-    fn from_url(url: &Url) -> Result<OptionsBuilder> {
-        let mut options_builder = OptionsBuilder::default();
+impl OptionsBuilderStage1 {
+    fn from_url(url: &Url) -> Result<OptionsBuilderStage1> {
+        let mut options_builder = OptionsBuilderStage0::default();
         for (key, value) in url.query_pairs() {
             match key.as_ref() {
                 "gh" => options_builder.gh = value.to_string(),
@@ -379,11 +361,16 @@ impl OptionsBuilder {
             options_builder.theme
         };
 
-        Ok(options_builder)
+        Ok(OptionsBuilderStage1 {
+            gh: options_builder.gh,
+            theme: options_builder.theme,
+            lines: options_builder.lines,
+            lang: options_builder.lang,
+        })
     }
 
     async fn build(self) -> Result<Options> {
-        let requested_source_info = get_requested_source_info_from_query(&self.gh)?;
+        let requested_source_info = get_requested_source_info_from_query(&self.gh, &self.lines)?;
 
         let raw_github_user_content = convert_github_permalink_to_raw_githubusercontent_source(
             requested_source_info.url.clone(),
@@ -399,9 +386,9 @@ impl OptionsBuilder {
     }
 }
 
-impl Default for OptionsBuilder {
+impl Default for OptionsBuilderStage0 {
     fn default() -> Self {
-        OptionsBuilder {
+        OptionsBuilderStage0 {
             gh: "".to_string(),
             theme: DEFAULT_THEME.to_string(),
             lines: None,
