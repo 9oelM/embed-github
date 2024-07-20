@@ -45,9 +45,9 @@ struct RequestedSourceInfo {
 #[event(fetch)]
 async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     let url = req.url()?;
-    // If query parameter is not provided (for any other requests, like GET /favicon.ico), return empty response.
+    // If query parameter is not provided (for any other requests, like GET /favicon.ico), return an instruction.
     if url.query().is_none() {
-        return Response::from_html("");
+        return Response::from_html("<html>See <a href=\"https://github.com/9oelM/embed-github\">https://github.com/9oelM/embed-github</a> on how to use this.</html>");
     }
 
     let requested_source_info = get_requested_source_info_from_query(&url)?;
