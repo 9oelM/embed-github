@@ -8,11 +8,9 @@ Note that `embed-github` is a SSR application where the worker renders all HTML 
 
 The safest and recommended way is to deploy your own `embed-github` to Cloudflare. Otherwise, you can use my own deployment of the worker at https://embed-github.lazer1.xyz. But the operational status of this worker is not always guaranteed because it will stay on the free plan.
 
-Cloudflare workers free plan offers 100K requests per day, so it must be more than okay for an average user.
+So if you decide to deploy your own worker, that's great, because Cloudflare workers free plan offers 100K requests per day. It must be more than enough for an average user like most of us. Just sign up for Cloudflare, and `git clone` this repository, delete `routes` key at [`wrangler.toml`](./wrangler.toml), and run `npx wrangler deploy`. Then it should give you the URL at which this worker is deployed. Use that URL for your iframe.
 
-Just sign up for Cloudflare, and `git clone` this repository, and run `npx wrangler deploy`. Then it should give you the URL at which this worker is deployed. Use that URL for your iframe.
-
-Then, use it in your `iframe`:
+This is how you would use it in your `iframe`:
 
 ```html
 <iframe
