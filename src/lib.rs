@@ -40,7 +40,7 @@ struct RequestedSourceInfo {
 async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     let url = req.url()?;
     // If query parameter is not provided (for any other requests, like GET /favicon.ico), return empty response.
-    if let None = url.query() {
+    if url.query().is_none() {
         return Response::from_html("");
     }
     let requested_source_info = get_requested_source_info_from_query(&url)?;
@@ -117,9 +117,9 @@ fn highlight_code(
         c.r, c.g, c.b
     );
     let highlighted_code =
-        highlighted_html_for_string(&source_code_in_range, &ss, sr, theme).unwrap();
-    html += &format!("{}", highlighted_code);
-    html += &format!("</body>");
+        highlighted_html_for_string(source_code_in_range, &ss, sr, theme).unwrap();
+    html += &highlighted_code.to_string();
+    html += "</body>";
 
     html
 }
@@ -201,7 +201,12 @@ fn get_requested_source_info_from_query(url: &Url) -> Result<RequestedSourceInfo
 
     let decoded_url = js_sys::decode_uri_component(&github_permalink_query_pair.1)?.as_string();
 
-    if let Some(decoded_url) = decoded_url {
+    if decoded_url.clone().is_some_and(
+        // Normal URL when decoded returns the same URL
+        |decoded_url| decoded_url != github_permalink_query_pair.1,
+    ) {
+        // Already checked
+        let decoded_url = decoded_url.unwrap();
         let url = Url::parse(&decoded_url).map_err(|_| {
             Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
         })?;
@@ -217,18 +222,17 @@ fn get_requested_source_info_from_query(url: &Url) -> Result<RequestedSourceInfo
         }
 
         let line_range = if let Some(frag) = url.fragment() {
-            decode_line_range(&frag)?
+            decode_line_range(frag)?
         } else {
             LineRange::All
         };
 
-        return Ok(RequestedSourceInfo {
+        Ok(RequestedSourceInfo {
             url,
             lines: line_range,
-        });
+        })
     } else {
-        // Try getting "lines" query parameter
-        let line_numbers = query_pairs.find(|(key, _)| key == "lines");
+        let line_numbers = url.query_pairs().clone().find(|(key, _)| key == "lines");
 
         let url = Url::parse(&github_permalink_query_pair.1).map_err(|_| {
             Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
@@ -250,10 +254,10 @@ fn get_requested_source_info_from_query(url: &Url) -> Result<RequestedSourceInfo
             LineRange::All
         };
 
-        return Ok(RequestedSourceInfo {
+        Ok(RequestedSourceInfo {
             url,
             lines: line_range,
-        });
+        })
     }
 }
 
