@@ -1,6 +1,9 @@
 name = "embed-github"
 main = "build/worker/shim.mjs"
 compatibility_date = "2023-12-01"
+routes = [
+	{ pattern = "embed-github.lazer1.xyz", custom_domain = true }
+]
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"
