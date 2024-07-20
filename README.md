@@ -38,7 +38,7 @@ Then it will show an iframe like:
    1. if `gh` parameter is a value returned by `encodeURIComponent`, then the range of lines must have been included already in the URL as a fragment. `lines` parameter should not be provided again.
 3. `theme`: changes the theme used for the code highlighting. See below for the list of available themes.
 
-Examples of valid query parameters:
+Examples of valid requests:
 
 - https://embed-github.lazer1.xyz?gh=https://github.com/graphcentral/notion/blob/70cd31090c324f36537c0f60160a4c22452f54e3/.eslintrc.js&lines=L1-L20
 - https://embed-github.lazer1.xyz?gh=https%3A%2F%2Fgithub.com%2Fgraphcentral%2Fnotion%2Fblob%2F70cd31090c324f36537c0f60160a4c22452f54e3%2F.eslintrc.js%23L1-L20
