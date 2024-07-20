@@ -45,15 +45,7 @@ struct RequestedSourceInfo {
 }
 
 #[derive(Debug)]
-struct OptionsBuilderStage0 {
-    gh: String,
-    theme: String,
-    lines: Option<String>,
-    lang: Option<String>,
-}
-
-#[derive(Debug)]
-struct OptionsBuilderStage1 {
+struct OptionsBuilder {
     gh: String,
     theme: String,
     lines: Option<String>,
@@ -79,7 +71,7 @@ async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     if url.query().is_none() {
         return Response::from_html("<html>See <a href=\"https://github.com/9oelM/embed-github\">https://github.com/9oelM/embed-github</a> on how to use this.</html>");
     }
-    let options_builder = OptionsBuilderStage1::from_url(&url)?;
+    let options_builder = OptionsBuilder::from_url(&url)?;
     let options = options_builder.build().await?;
 
     let source_code_in_range = get_source_code_in_range(
@@ -338,9 +330,9 @@ fn get_requested_source_info_from_query(
     })
 }
 
-impl OptionsBuilderStage1 {
-    fn from_url(url: &Url) -> Result<OptionsBuilderStage1> {
-        let mut options_builder = OptionsBuilderStage0::default();
+impl OptionsBuilder {
+    fn from_url(url: &Url) -> Result<OptionsBuilder> {
+        let mut options_builder = OptionsBuilder::default();
         for (key, value) in url.query_pairs() {
             match key.as_ref() {
                 "gh" => options_builder.gh = value.to_string(),
@@ -361,7 +353,7 @@ impl OptionsBuilderStage1 {
             options_builder.theme
         };
 
-        Ok(OptionsBuilderStage1 {
+        Ok(OptionsBuilder {
             gh: options_builder.gh,
             theme: options_builder.theme,
             lines: options_builder.lines,
@@ -386,9 +378,9 @@ impl OptionsBuilderStage1 {
     }
 }
 
-impl Default for OptionsBuilderStage0 {
+impl Default for OptionsBuilder {
     fn default() -> Self {
-        OptionsBuilderStage0 {
+        OptionsBuilder {
             gh: "".to_string(),
             theme: DEFAULT_THEME.to_string(),
             lines: None,
