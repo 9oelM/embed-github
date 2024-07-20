@@ -35,6 +35,7 @@ Then it will show an iframe like:
    1. if `gh` parameter is a raw URL, then it must be in the format of `lines=L{number}-L{number}`. Example: `lines=L1-L10`. This is for convenience; When you don't want to run `encodeURIComponent` on the URL, just copy and paste, and change `#L13-L14` to `&lines=L13-L14`. Otherwise, `lines` parameter doesn't have to be specified at all. In this case, the entire file will be shown.
    1. if `gh` parameter is a value returned by `encodeURIComponent`, then the range of lines must have been included already in the URL as a fragment. `lines` parameter should not be provided again.
 3. `theme`: changes the theme used for the code highlighting. See below for the list of available themes.
+4. `lang`: override highlighting language. See below for the list of available languages.
 
 Examples of valid requests:
 
@@ -60,3 +61,73 @@ Use the `theme` query parameter to change the theme, like: `https://myworker.url
 ```
 
 The list of available themes is directly dependent on the underlying library [`syntect`](https://github.com/trishume/syntect/)'s `ThemeSet::load_defaults()`. If you want to add your own theme, you need to start from there.
+
+## Using a language
+
+Any of the file extensions below can be used as a `lang` query parameter to override automatic file extension detection.
+
+```
+"txt"
+"asa"
+"asp"
+"as"
+"applescript", "script editor"
+"bat", "cmd"
+"build"
+"cs", "csx"
+"cpp", "cc", "cp", "cxx", "c++", "C", "h", "hh", "hpp", "hxx", "h++", "inl", "ipp"
+"c", "h"
+"css", "css.erb", "css.liquid"
+"clj"
+"d", "di"
+"diff", "patch"
+"erl", "hrl", "Emakefile", "emakefile"
+"yaws"
+"go"
+"dot", "DOT", "gv"
+"groovy", "gvy", "gradle"
+"html", "htm", "shtml", "xhtml", "inc", "tmpl", "tpl"
+"hs"
+"lhs"
+"jsp"
+"java", "bsh"
+"properties"
+"json", "sublime-settings", "sublime-menu", "sublime-keymap", "sublime-mousemap", "sublime-theme", "sublime-build", "sublime-project", "sublime-completions", "sublime-commands", "sublime-macro", "sublime-color-scheme"
+"js", "htc"
+"bib"
+"tex", "ltx"
+"sty", "cls"
+"lisp", "cl", "clisp", "l", "mud", "el", "scm", "ss", "lsp", "fasl"
+"lua"
+"make", "GNUmakefile", "makefile", "Makefile", "OCamlMakefile", "mak", "mk"
+"md", "mdown", "markdown", "markdn"
+"matlab"
+"ml", "mli"
+"mll"
+"mly"
+"mm", "M", "h"
+"m", "h"
+"php", "php3", "php4", "php5", "php7", "phps", "phpt", "phtml"
+"pas", "p", "dpr"
+"pl", "pm", "pod", "t", "PL"
+"py", "py3", "pyw", "pyi", "pyx", "pyx.in", "pxd", "pxd.in", "pxi", "pxi.in", "rpy", "cpy", "SConstruct", "Sconstruct", "sconstruct", "SConscript", "gyp", "gypi", "Snakefile", "wscript"
+"R", "r", "s", "S", "Rprofile"
+"rd"
+"rails", "rhtml", "erb", "html.erb"
+"js.erb"
+"haml", "sass"
+"rxml", "builder"
+"erbsql", "sql.erb"
+"re"
+"rst", "rest"
+"rb", "Appfile", "Appraisals", "Berksfile", "Brewfile", "capfile", "cgi", "Cheffile", "config.ru", "Deliverfile", "Fastfile", "fcgi", "Gemfile", "gemspec", "Guardfile", "irbrc", "jbuilder", "podspec", "prawn", "rabl", "rake", "Rakefile", "Rantfile", "rbx", "rjs", "ruby.rail", "Scanfile", "simplecov", "Snapfile", "thor", "Thorfile", "Vagrantfile"
+"rs"
+"sql", "ddl", "dml"
+"scala", "sbt"
+"sh", "bash", "zsh", "fish", ".bash_aliases", ".bash_completions", ".bash_functions", ".bash_login", ".bash_logout", ".bash_profile", ".bash_variables", ".bashrc", ".profile", ".textmate_init"
+"adp"
+"tcl"
+"textile"
+"xml", "xsd", "xslt", "tld", "dtml", "rss", "opml", "svg"
+"yaml", "yml", "sublime-syntax"
+```
