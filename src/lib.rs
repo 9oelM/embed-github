@@ -6,6 +6,8 @@ use syntect::{
 use worker::*;
 
 const PERMALINK_MIN_PATH_LEN: u32 = 5;
+const DEFAULT_THEME: &str = "base16-ocean.dark";
+const EMBED_GITHUB_URL: &str = "https://github.com/9oelm/embed-github";
 
 enum Conversion {
     PathTooShort,
@@ -15,6 +17,10 @@ enum Conversion {
     InvalidLineNumberPair,
     ComposeRawCodeUrl,
     LineNumberOutOfRange,
+}
+
+enum HighlightCodeError {
+    InvalidTheme,
 }
 
 #[derive(Debug)]
@@ -43,16 +49,33 @@ async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     if url.query().is_none() {
         return Response::from_html("");
     }
+
     let requested_source_info = get_requested_source_info_from_query(&url)?;
     let permalink_raw_source_code =
-        convert_github_permalink_to_raw_githubusercontent_source(requested_source_info.url).await?;
+        convert_github_permalink_to_raw_githubusercontent_source(requested_source_info.url.clone())
+            .await?;
     let source_code_in_range = get_source_code_in_range(
         permalink_raw_source_code.raw_code_url.clone(),
         &requested_source_info.lines,
     )
     .await?;
 
-    let highlighted_code = highlight_code(&permalink_raw_source_code, &source_code_in_range);
+    let requested_theme = url
+        .query_pairs()
+        .find(|(key, _)| key == "theme")
+        .map(|(_, value)| value);
+    let requested_theme = if let Some(theme) = requested_theme {
+        &theme.to_string()
+    } else {
+        DEFAULT_THEME
+    };
+
+    let highlighted_code = highlight_code(
+        &permalink_raw_source_code,
+        &source_code_in_range,
+        requested_theme,
+        &requested_source_info,
+    )?;
 
     Response::from_html(highlighted_code)
 }
@@ -91,7 +114,9 @@ async fn convert_github_permalink_to_raw_githubusercontent_source(
 fn highlight_code(
     permalink_raw_source_code: &RawGithubUserContentSource,
     source_code_in_range: &str,
-) -> String {
+    requested_theme: &str,
+    requested_source_info: &RequestedSourceInfo,
+) -> Result<String> {
     let ss = SyntaxSet::load_defaults_newlines();
     let ts = ThemeSet::load_defaults();
 
@@ -108,9 +133,55 @@ fn highlight_code(
         pre {
             font-size:13px;
             font-family: Consolas, \"Liberation Mono\", Menlo, Courier, monospace;
-        }";
-    html += &format!("<head><title>test</title><style>{}</style></head>", style);
-    let theme = &ts.themes["base16-ocean.dark"];
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            padding: 1em;
+        }
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #f8f8f8;
+            border-top: 1px solid #e0e0e0;
+            font-size: 0.8em;
+            display: flex;
+            font-family: Consolas, \"Liberation Mono\", Menlo, Courier, monospace;
+        }
+        .link {
+            color: #0074d9;
+            text-decoration: none;
+            transition: color 0.2s;
+            padding: 0.5em;
+            word-break: break-all;
+        }
+        .link:hover {
+            color: #012fff;
+            text-decoration: underline;
+        }
+        .embed-github {
+            margin-left: auto;
+        }
+    ";
+    // raw_code_url must contain at least one path segment
+    let file_path = permalink_raw_source_code
+        .raw_code_url
+        .path()
+        .split('/')
+        .last()
+        .unwrap();
+    html += &format!(
+        "<head><title>{}</title><style>{}</style></head>",
+        file_path, style
+    );
+    let theme = &ts
+        .themes
+        .get(requested_theme)
+        .ok_or::<Error>(HighlightCodeError::InvalidTheme.into())?;
     let c = theme.settings.background.unwrap_or(Color::WHITE);
     html += &format!(
         "<body style=\"background-color:#{:02x}{:02x}{:02x};\">\n",
@@ -119,9 +190,28 @@ fn highlight_code(
     let highlighted_code =
         highlighted_html_for_string(source_code_in_range, &ss, sr, theme).unwrap();
     html += &highlighted_code.to_string();
-    html += "</body>";
 
-    html
+    let original_url = match requested_source_info.lines {
+        LineRange::Single(line) => format!("{}#L{}", requested_source_info.url.as_str(), line),
+        LineRange::Range(start, end) => {
+            format!("{}#L{}-L{}", requested_source_info.url.as_str(), start, end)
+        }
+        LineRange::All => requested_source_info.url.as_str().to_string(),
+    };
+    let line_info = match requested_source_info.lines.to_string().as_str() {
+        "" => "".to_string(),
+        s => format!("#{}", s),
+    };
+
+    html += &format!(
+        "<div class=\"bottom-bar\">
+        <a href=\"{}\" class=\"link\">{}{}</a>
+        <a href=\"{}\" class=\"link embed-github\">hosted by 9oelm/embed-github</a>
+    </div></body>",
+        &original_url, file_path, line_info, EMBED_GITHUB_URL
+    );
+
+    Ok(html)
 }
 
 fn decode_line_range(fragment: &str) -> Result<LineRange> {
@@ -286,6 +376,24 @@ impl From<Conversion> for Error {
             Conversion::LineNumberOutOfRange => Error::RustError(
                 "Corresponding line number could not be found in the file".to_string(),
             ),
+        }
+    }
+}
+
+impl From<HighlightCodeError> for Error {
+    fn from(err: HighlightCodeError) -> Self {
+        match err {
+            HighlightCodeError::InvalidTheme => Error::RustError("Invalid theme".to_string()),
+        }
+    }
+}
+
+impl ToString for LineRange {
+    fn to_string(&self) -> String {
+        match self {
+            LineRange::Single(line) => format!("L{}", line),
+            LineRange::Range(start, end) => format!("L{}-L{}", start, end),
+            LineRange::All => "".to_string(),
         }
     }
 }
