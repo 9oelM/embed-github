@@ -130,3 +130,9 @@ Any of the file extensions below can be used as a `lang` query parameter to over
 "xml", "xsd", "xslt", "tld", "dtml", "rss", "opml", "svg"
 "yaml", "yml", "sublime-syntax"
 ```
+
+## Todos
+
+- More rigorous error handling (probably just return an HTML page explaining what went wrong)
+- Show line numbers
+- Adjustable font size & line height
