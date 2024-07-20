@@ -15,7 +15,6 @@ This is how you would use it in your `iframe`:
 ```html
 <iframe
   frameborder="0"
-  scrolling="no"
   style="width:100%; height:307px;"
   allow="clipboard-write"
   src="https://embed-github.lazer1.xyz?gh=https://github.com/graphcentral/notion/blob/70cd31090c324f36537c0f60160a4c22452f54e3/.eslintrc.js&lines=L1-L20"
