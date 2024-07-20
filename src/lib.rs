@@ -205,8 +205,8 @@ fn highlight_code(
 
     html += &format!(
         "<div class=\"bottom-bar\">
-        <a href=\"{}\" class=\"link\">{}{}</a>
-        <a href=\"{}\" class=\"link embed-github\">hosted by 9oelm/embed-github</a>
+        <a href=\"{}\" class=\"link\" target=\"_blank\">{}{}</a>
+        <a href=\"{}\" class=\"link embed-github\" target=\"_blank\">hosted by 9oelm/embed-github</a>
     </div></body>",
         &original_url, file_path, line_info, EMBED_GITHUB_URL
     );
