@@ -9,4 +9,4 @@ routes = [
 command = "cargo install -q worker-build && worker-build --release"
 
 [env.dev]
-build = { command = "cargo install -q worker-build && worker-build --dev" }
+build = { command = "cargo install -q worker-build && worker-build --dev --features console_error_panic_hook" }

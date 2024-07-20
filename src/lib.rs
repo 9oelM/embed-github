@@ -5,6 +5,8 @@ use syntect::{
 };
 use worker::*;
 
+mod utils;
+
 const PERMALINK_MIN_PATH_LEN: u32 = 5;
 const DEFAULT_THEME: &str = "base16-ocean.dark";
 const EMBED_GITHUB_URL: &str = "https://github.com/9oelm/embed-github";
@@ -42,40 +44,43 @@ struct RequestedSourceInfo {
     lines: LineRange,
 }
 
+#[derive(Debug)]
+struct OptionsBuilder {
+    gh: String,
+    theme: String,
+    lines: Option<String>,
+    lang: Option<String>,
+}
+
+#[derive(Debug)]
+struct Options {
+    requested_source_info: RequestedSourceInfo,
+    raw_github_user_content: RawGithubUserContentSource,
+    theme: String,
+    lang: Option<String>,
+}
+
 #[event(fetch)]
 async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
+    utils::log_request(&req);
+    utils::set_panic_hook();
+
     let url = req.url()?;
+
     // If query parameter is not provided (for any other requests, like GET /favicon.ico), return an instruction.
     if url.query().is_none() {
         return Response::from_html("<html>See <a href=\"https://github.com/9oelM/embed-github\">https://github.com/9oelM/embed-github</a> on how to use this.</html>");
     }
+    let options_builder = OptionsBuilder::from_url(&url)?;
+    let options = options_builder.build().await?;
 
-    let requested_source_info = get_requested_source_info_from_query(&url)?;
-    let permalink_raw_source_code =
-        convert_github_permalink_to_raw_githubusercontent_source(requested_source_info.url.clone())
-            .await?;
     let source_code_in_range = get_source_code_in_range(
-        permalink_raw_source_code.raw_code_url.clone(),
-        &requested_source_info.lines,
+        options.raw_github_user_content.raw_code_url.clone(),
+        &options.requested_source_info.lines,
     )
     .await?;
 
-    let requested_theme = url
-        .query_pairs()
-        .find(|(key, _)| key == "theme")
-        .map(|(_, value)| value);
-    let requested_theme = if let Some(theme) = requested_theme {
-        &theme.to_string()
-    } else {
-        DEFAULT_THEME
-    };
-
-    let highlighted_code = highlight_code(
-        &permalink_raw_source_code,
-        &source_code_in_range,
-        requested_theme,
-        &requested_source_info,
-    )?;
+    let highlighted_code = highlight_code(&source_code_in_range, &options)?;
 
     Response::from_html(highlighted_code)
 }
@@ -111,17 +116,18 @@ async fn convert_github_permalink_to_raw_githubusercontent_source(
     })
 }
 
-fn highlight_code(
-    permalink_raw_source_code: &RawGithubUserContentSource,
-    source_code_in_range: &str,
-    requested_theme: &str,
-    requested_source_info: &RequestedSourceInfo,
-) -> Result<String> {
+fn highlight_code(source_code_in_range: &str, options: &Options) -> Result<String> {
     let ss = SyntaxSet::load_defaults_newlines();
     let ts = ThemeSet::load_defaults();
 
+    // Priority: lang query parameter > source file extension > plaintext
     let sr = ss
-        .find_syntax_by_extension(&permalink_raw_source_code.file_extension)
+        .find_syntax_by_token(
+            &options
+                .lang
+                .clone()
+                .unwrap_or(options.raw_github_user_content.file_extension.clone()),
+        )
         .or_else(|| {
             // default to plaintext if no matching syntax is found
             ss.find_syntax_by_extension("txt")
@@ -168,7 +174,8 @@ fn highlight_code(
         }
     ";
     // raw_code_url must contain at least one path segment
-    let file_path = permalink_raw_source_code
+    let file_path = options
+        .raw_github_user_content
         .raw_code_url
         .path()
         .split('/')
@@ -180,7 +187,7 @@ fn highlight_code(
     );
     let theme = &ts
         .themes
-        .get(requested_theme)
+        .get(&options.theme)
         .ok_or::<Error>(HighlightCodeError::InvalidTheme.into())?;
     let c = theme.settings.background.unwrap_or(Color::WHITE);
     html += &format!(
@@ -191,14 +198,21 @@ fn highlight_code(
         highlighted_html_for_string(source_code_in_range, &ss, sr, theme).unwrap();
     html += &highlighted_code.to_string();
 
-    let original_url = match requested_source_info.lines {
-        LineRange::Single(line) => format!("{}#L{}", requested_source_info.url.as_str(), line),
-        LineRange::Range(start, end) => {
-            format!("{}#L{}-L{}", requested_source_info.url.as_str(), start, end)
+    let original_url_with_line_range = match options.requested_source_info.lines {
+        LineRange::Single(line) => {
+            format!("{}#L{}", options.requested_source_info.url.as_str(), line)
         }
-        LineRange::All => requested_source_info.url.as_str().to_string(),
+        LineRange::Range(start, end) => {
+            format!(
+                "{}#L{}-L{}",
+                options.requested_source_info.url.as_str(),
+                start,
+                end
+            )
+        }
+        LineRange::All => options.requested_source_info.url.as_str().to_string(),
     };
-    let line_info = match requested_source_info.lines.to_string().as_str() {
+    let line_info = match options.requested_source_info.lines.to_string().as_str() {
         "" => "".to_string(),
         s => format!("#{}", s),
     };
@@ -208,7 +222,7 @@ fn highlight_code(
         <a href=\"{}\" class=\"link\" target=\"_blank\">{}{}</a>
         <a href=\"{}\" class=\"link embed-github\" target=\"_blank\">hosted by 9oelm/embed-github</a>
     </div></body>",
-        &original_url, file_path, line_info, EMBED_GITHUB_URL
+        &original_url_with_line_range, file_path, line_info, EMBED_GITHUB_URL
     );
 
     Ok(html)
@@ -280,20 +294,12 @@ async fn get_source_code_in_range(raw_code_url: Url, line_range: &LineRange) -> 
     }
 }
 
-fn get_requested_source_info_from_query(url: &Url) -> Result<RequestedSourceInfo> {
-    let mut query_pairs = url.query_pairs();
-    let github_permalink_query_pair = query_pairs
-        .find(|(key, _)| key == "gh")
-        .ok_or(Error::RustError(
-            "\"gh\" parameter is required. Example: https://worker.url?gh=<encoded GitHub permalink URL>"
-                .to_string(),
-        ))?;
-
-    let decoded_url = js_sys::decode_uri_component(&github_permalink_query_pair.1)?.as_string();
+fn get_requested_source_info_from_query(gh_url_from_query: &str) -> Result<RequestedSourceInfo> {
+    let decoded_url = js_sys::decode_uri_component(gh_url_from_query)?.as_string();
 
     if decoded_url.clone().is_some_and(
         // Normal URL when decoded returns the same URL
-        |decoded_url| decoded_url != github_permalink_query_pair.1,
+        |decoded_url| decoded_url != gh_url_from_query,
     ) {
         // Already checked
         let decoded_url = decoded_url.unwrap();
@@ -322,11 +328,10 @@ fn get_requested_source_info_from_query(url: &Url) -> Result<RequestedSourceInfo
             lines: line_range,
         })
     } else {
-        let line_numbers = url.query_pairs().clone().find(|(key, _)| key == "lines");
-
-        let url = Url::parse(&github_permalink_query_pair.1).map_err(|_| {
+        let url = Url::parse(gh_url_from_query).map_err(|_| {
             Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
         })?;
+        let line_numbers = url.query_pairs().clone().find(|(key, _)| key == "lines");
 
         let domain = url.domain().ok_or(Error::RustError(
             "Invalid Github Permalink URL missing a domain".to_string(),
@@ -348,6 +353,60 @@ fn get_requested_source_info_from_query(url: &Url) -> Result<RequestedSourceInfo
             url,
             lines: line_range,
         })
+    }
+}
+
+impl OptionsBuilder {
+    fn from_url(url: &Url) -> Result<OptionsBuilder> {
+        let mut options_builder = OptionsBuilder::default();
+        for (key, value) in url.query_pairs() {
+            match key.as_ref() {
+                "gh" => options_builder.gh = value.to_string(),
+                "theme" => options_builder.theme = value.to_string(),
+                "lines" => options_builder.lines = Some(value.to_string()),
+                "lang" => options_builder.lang = Some(value.to_string()),
+                _ => {}
+            }
+        }
+
+        if options_builder.gh.is_empty() {
+            return Err(Error::RustError("\"gh\" parameter is required. See https://github.com/9oelM/embed-github on how to use this".to_string()));
+        }
+
+        options_builder.theme = if options_builder.theme.is_empty() {
+            DEFAULT_THEME.to_string()
+        } else {
+            options_builder.theme
+        };
+
+        Ok(options_builder)
+    }
+
+    async fn build(self) -> Result<Options> {
+        let requested_source_info = get_requested_source_info_from_query(&self.gh)?;
+
+        let raw_github_user_content = convert_github_permalink_to_raw_githubusercontent_source(
+            requested_source_info.url.clone(),
+        )
+        .await?;
+
+        Ok(Options {
+            requested_source_info,
+            raw_github_user_content,
+            theme: self.theme,
+            lang: self.lang,
+        })
+    }
+}
+
+impl Default for OptionsBuilder {
+    fn default() -> Self {
+        OptionsBuilder {
+            gh: "".to_string(),
+            theme: DEFAULT_THEME.to_string(),
+            lines: None,
+            lang: None,
+        }
     }
 }
 
