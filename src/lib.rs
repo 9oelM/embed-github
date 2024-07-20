@@ -25,22 +25,32 @@ enum LineRange {
 }
 
 #[derive(Debug)]
-struct PermalinkRawSourceCode {
+struct RawGithubUserContentSource {
     raw_code_url: Url,
     file_extension: String,
+}
+
+#[derive(Debug)]
+struct RequestedSourceInfo {
+    url: Url,
     lines: LineRange,
 }
 
 #[event(fetch)]
 async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
-    let permalink_raw_source_code = convert_github_permalink_to_permalink_source(Url::parse("https://github.com/huggingface/transformers/blob/0fdea8607d7e01eb0e38a1ebeb7feee30a22f0cf/tests/models/align/test_modeling_align.py#L10").unwrap()).await?;
+    let url = req.url()?;
+    // If query parameter is not provided (for any other requests, like GET /favicon.ico), return empty response.
+    if let None = url.query() {
+        return Response::from_html("");
+    }
+    let requested_source_info = get_requested_source_info_from_query(&url)?;
+    let permalink_raw_source_code =
+        convert_github_permalink_to_raw_githubusercontent_source(requested_source_info.url).await?;
     let source_code_in_range = get_source_code_in_range(
         permalink_raw_source_code.raw_code_url.clone(),
-        &permalink_raw_source_code.lines,
+        &requested_source_info.lines,
     )
     .await?;
-
-    console_log!("{}", source_code_in_range);
 
     let highlighted_code = highlight_code(&permalink_raw_source_code, &source_code_in_range);
 
@@ -49,9 +59,9 @@ async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
 
 // https://github.com/huggingface/transformers/blob/0fdea8607d7e01eb0e38a1ebeb7feee30a22f0cf/tests/models/align/test_modeling_align.py#L10-L19 =>
 // https://raw.githubusercontent.com/huggingface/transformers/0fdea8607d7e01eb0e38a1ebeb7feee30a22f0cf/tests/models/align/test_modeling_align.py
-async fn convert_github_permalink_to_permalink_source(
+async fn convert_github_permalink_to_raw_githubusercontent_source(
     github_permalink: Url,
-) -> Result<PermalinkRawSourceCode> {
+) -> Result<RawGithubUserContentSource> {
     let path = github_permalink.path().split('/').collect::<Vec<&str>>();
     if path.len() < PERMALINK_MIN_PATH_LEN as usize {
         return Err(Conversion::PathTooShort.into());
@@ -62,8 +72,6 @@ async fn convert_github_permalink_to_permalink_source(
     // Omit 'blob' at path[3]
     let hash = path[4];
     let file_path = path[5..].join("/");
-    // #L10-L19
-    let fragment = github_permalink.fragment();
 
     // If file extension is not found, default to 'txt'
     let file_extension = path[path.len() - 1].split('.').last().unwrap_or("txt");
@@ -74,21 +82,14 @@ async fn convert_github_permalink_to_permalink_source(
     );
     let raw_code_url = Url::parse(&raw_code_url).map_err(|_| Conversion::ComposeRawCodeUrl)?;
 
-    let line_range = if let Some(fragment) = fragment {
-        decode_line_range(fragment)?
-    } else {
-        LineRange::All
-    };
-
-    Ok(PermalinkRawSourceCode {
+    Ok(RawGithubUserContentSource {
         raw_code_url,
         file_extension: file_extension.to_string(),
-        lines: line_range,
     })
 }
 
 fn highlight_code(
-    permalink_raw_source_code: &PermalinkRawSourceCode,
+    permalink_raw_source_code: &RawGithubUserContentSource,
     source_code_in_range: &str,
 ) -> String {
     let ss = SyntaxSet::load_defaults_newlines();
@@ -125,6 +126,7 @@ fn highlight_code(
 
 fn decode_line_range(fragment: &str) -> Result<LineRange> {
     let line_numbers = fragment.split('-').collect::<Vec<&str>>();
+
     if line_numbers.len() == 2 {
         let start: u64 = line_numbers[0]
             .strip_prefix("L")
@@ -185,6 +187,73 @@ async fn get_source_code_in_range(raw_code_url: Url, line_range: &LineRange) -> 
             Ok(in_range)
         }
         LineRange::All => get(raw_code_url).await,
+    }
+}
+
+fn get_requested_source_info_from_query(url: &Url) -> Result<RequestedSourceInfo> {
+    let mut query_pairs = url.query_pairs();
+    let github_permalink_query_pair = query_pairs
+        .find(|(key, _)| key == "gh")
+        .ok_or(Error::RustError(
+            "\"gh\" parameter is required. Example: https://worker.url?gh=<encoded GitHub permalink URL>"
+                .to_string(),
+        ))?;
+
+    let decoded_url = js_sys::decode_uri_component(&github_permalink_query_pair.1)?.as_string();
+
+    if let Some(decoded_url) = decoded_url {
+        let url = Url::parse(&decoded_url).map_err(|_| {
+            Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
+        })?;
+
+        let domain = url.domain().ok_or(Error::RustError(
+            "Invalid Github Permalink URL missing a domain".to_string(),
+        ))?;
+
+        if domain != "github.com" {
+            return Err(Error::RustError(
+                "Invalid Github Permalink URL. Only URLs from github.com are allowed".to_string(),
+            ));
+        }
+
+        let line_range = if let Some(frag) = url.fragment() {
+            decode_line_range(&frag)?
+        } else {
+            LineRange::All
+        };
+
+        return Ok(RequestedSourceInfo {
+            url,
+            lines: line_range,
+        });
+    } else {
+        // Try getting "lines" query parameter
+        let line_numbers = query_pairs.find(|(key, _)| key == "lines");
+
+        let url = Url::parse(&github_permalink_query_pair.1).map_err(|_| {
+            Error::RustError("Invalid Github Permalink URL as a query parameter".to_string())
+        })?;
+
+        let domain = url.domain().ok_or(Error::RustError(
+            "Invalid Github Permalink URL missing a domain".to_string(),
+        ))?;
+
+        if domain != "github.com" {
+            return Err(Error::RustError(
+                "Invalid Github Permalink URL. Only URLs from github.com are allowed".to_string(),
+            ));
+        }
+
+        let line_range = if let Some(line_numbers) = line_numbers {
+            decode_line_range(&line_numbers.1)?
+        } else {
+            LineRange::All
+        };
+
+        return Ok(RequestedSourceInfo {
+            url,
+            lines: line_range,
+        });
     }
 }
 
