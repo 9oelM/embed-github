@@ -1,8 +1,10 @@
 # embed-github
 
+![iframe Screenshot](./iframe-screenshot.png)
+
 `embed-github` is a simple Cloudflare worker that fetches source code from any public Github repository, highlights the code in a HTML format and sends it back as a response.
 
-Note that `embed-github` is a SSR application where the worker renders all HTML beforehand before sending the response, so the client will only see the website with minimal overhead.
+Note that `embed-github` is a SSR application where the worker renders all HTML beforehand before sending the response, so the client will only see the website with minimal overhead. Zero external stylesheets or scripts.
 
 ## How to use
 
@@ -20,10 +22,6 @@ This is how you would use it in your `iframe`:
   src="https://embed-github.lazer1.xyz?gh=https://github.com/graphcentral/notion/blob/70cd31090c324f36537c0f60160a4c22452f54e3/.eslintrc.js&lines=L1-L20"
 ></iframe>
 ```
-
-Then it will show an iframe like:
-
-![iframe Screenshot](./iframe-screenshot.png)
 
 ### Available query parameters
 
@@ -134,5 +132,4 @@ Any of the file extensions below can be used as a `lang` query parameter to over
 ## Todos
 
 - More rigorous error handling (probably just return an HTML page explaining what went wrong)
-- Show line numbers
 - Adjustable font size & line height
