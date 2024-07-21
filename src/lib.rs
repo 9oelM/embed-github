@@ -5,6 +5,7 @@ use syntect::{
 };
 use worker::*;
 
+mod hydration;
 mod utils;
 
 const PERMALINK_MIN_PATH_LEN: u32 = 5;
@@ -137,15 +138,20 @@ fn highlight_code(source_code_in_range: &str, options: &Options) -> Result<Strin
     let mut html = String::from("");
     let style = "
         pre {
-            font-size:13px;
+            font-size: 13px;
             font-family: Consolas, \"Liberation Mono\", Menlo, Courier, monospace;
+            width: calc(100% - 50px);
         }
-        html, body {
+        html, body, p, pre {
             margin: 0;
             padding: 0;
         }
-        body {
-            padding: 1em;
+        main {
+            display: flex;
+            flex-direction: row;
+            margin-top: 10px;
+            margin-bottom: 100px;
+            column-gap: 10px;
         }
         .bottom-bar {
             position: fixed;
@@ -172,6 +178,13 @@ fn highlight_code(source_code_in_range: &str, options: &Options) -> Result<Strin
         .embed-github {
             margin-left: auto;
         }
+        .line-numbers {
+            width: 40px;
+            height: 100%;
+            font-family: Consolas, \"Liberation Mono\", Menlo, Courier, monospace;
+            color: #fff;
+            font-size: 13px;
+        }
     ";
     // raw_code_url must contain at least one path segment
     let file_path = options
@@ -182,8 +195,10 @@ fn highlight_code(source_code_in_range: &str, options: &Options) -> Result<Strin
         .last()
         .unwrap();
     html += &format!(
-        "<head><title>{}</title><style>{}</style></head>",
-        file_path, style
+        "<head><title>{}</title><style>{}</style><script>{}</script></head>",
+        file_path,
+        style,
+        hydration::generate_hydration_script(&options.requested_source_info.lines)
     );
     let theme = &ts
         .themes
@@ -194,6 +209,7 @@ fn highlight_code(source_code_in_range: &str, options: &Options) -> Result<Strin
         "<body style=\"background-color:#{:02x}{:02x}{:02x};\">\n",
         c.r, c.g, c.b
     );
+    html += "<main><aside class=\"line-numbers\"></aside>";
     let highlighted_code =
         highlighted_html_for_string(source_code_in_range, &ss, sr, theme).unwrap();
     html += &highlighted_code.to_string();
@@ -221,7 +237,7 @@ fn highlight_code(source_code_in_range: &str, options: &Options) -> Result<Strin
         "<div class=\"bottom-bar\">
         <a href=\"{}\" class=\"link\" target=\"_blank\">{}{}</a>
         <a href=\"{}\" class=\"link embed-github\" target=\"_blank\">hosted by 9oelm/embed-github</a>
-    </div></body>",
+    </div></main></body>",
         &original_url_with_line_range, file_path, line_info, EMBED_GITHUB_URL
     );
 
