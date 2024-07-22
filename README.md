@@ -131,5 +131,20 @@ Any of the file extensions below can be used as a `lang` query parameter to over
 
 ## Todos
 
-- More rigorous error handling (probably just return an HTML page explaining what went wrong)
-- Adjustable font size & line height
+1. More rigorous error handling (probably just return an HTML page explaining what went wrong) and error enum.
+1. Adjustable font size & line height
+1. Random 500 errors (probably will be resolved once we have the first todo resolved) when many requests are sent at the same time. Reason is still unknown.
+
+## Contributing
+
+Have the latest version of Rust installed. The default toolchain is **nightly**.
+
+Run:
+
+```
+npx wrangler -e dev dev
+```
+
+to start a local development environment. Access the worker at http://localhost:8787.
+
+Just fork the repo, make changes, and make a PR from your branch at your fork.
