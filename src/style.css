@@ -1,0 +1,66 @@
+pre {
+  font-size: 13px;
+  font-family:
+    Consolas,
+    Liberation Mono,
+    Menlo,
+    Courier,
+    monospace;
+  width: calc(100% - 50px);
+}
+html,
+body,
+p,
+pre {
+  margin: 0;
+  padding: 0;
+}
+main {
+  display: flex;
+  flex-direction: row;
+  margin-top: 10px;
+  margin-bottom: 100px;
+  column-gap: 10px;
+}
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: #f8f8f8;
+  border-top: 1px solid #e0e0e0;
+  font-size: 0.8em;
+  display: flex;
+  font-family:
+    Consolas,
+    Liberation Mono,
+    Menlo,
+    Courier,
+    monospace;
+}
+.link {
+  color: #0074d9;
+  text-decoration: none;
+  transition: color 0.2s;
+  padding: 0.5em;
+  word-break: break-all;
+}
+.link:hover {
+  color: #012fff;
+  text-decoration: underline;
+}
+.embed-github {
+  margin-left: auto;
+}
+.line-numbers {
+  width: 40px;
+  height: 100%;
+  font-family:
+    Consolas,
+    Liberation Mono,
+    Menlo,
+    Courier,
+    monospace;
+  color: #fff;
+  font-size: 13px;
+}
