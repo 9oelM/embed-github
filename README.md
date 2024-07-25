@@ -132,7 +132,7 @@ Any of the file extensions below can be used as a `lang` query parameter to over
 ## Todos
 
 1. Adjustable font size & line height
-1. Random 500 errors (probably will be resolved once we have the first todo resolved) when many requests are sent at the same time. Reason is still unknown.
+1. 500 error due to "Error: Worker exceeded CPU time limit". It seems that HTML code block generation takes a lot of CPU time and returns an error. [The free plan on CF workers offers CPU time of 10 ms](https://developers.cloudflare.com/workers/platform/limits/#worker-limits), which might not be a lot for this worker.
 1. Webpage like https://emgithub.com/ where users can preview their iframe
 
 ## Contributing
