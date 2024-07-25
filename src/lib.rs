@@ -271,10 +271,16 @@ fn decode_line_range(fragment: &str) -> core::result::Result<LineRange, DecodeLi
 }
 
 async fn get(url: Url) -> core::result::Result<String, GetSourceError> {
-    let mut resp = Fetch::Url(url)
+    let mut resp = Fetch::Url(url.clone())
         .send()
         .await
         .map_err(GetSourceError::FetchSource)?;
+    if (400..=599).contains(&resp.status_code()) {
+        return Err(GetSourceError::FetchSourceStatusCode {
+            status_code: resp.status_code(),
+            url: url.as_str().to_string(),
+        });
+    }
     let txt = resp.text().await.map_err(GetSourceError::FetchSource)?;
 
     Ok(txt)
