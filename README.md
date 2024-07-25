@@ -131,9 +131,9 @@ Any of the file extensions below can be used as a `lang` query parameter to over
 
 ## Todos
 
-1. More rigorous error handling (probably just return an HTML page explaining what went wrong) and error enum.
 1. Adjustable font size & line height
 1. Random 500 errors (probably will be resolved once we have the first todo resolved) when many requests are sent at the same time. Reason is still unknown.
+1. Webpage like https://emgithub.com/ where users can preview their iframe
 
 ## Contributing
 
